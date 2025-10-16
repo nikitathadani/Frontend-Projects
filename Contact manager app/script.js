@@ -1,103 +1,129 @@
-// object for storing a contacts in array for localstorage
 let contacts = [];
+let editingId = null;
 
-/* console.log(contacts); */
-
-function renderContact(contact) {
-  /* set item to localStorage to store data */
-  localStorage.setItem("contacts", JSON.stringify(contacts));
-
-  // selecting the list where we will appending a all node items
-  const list = document.querySelector(".Contact_list");
-
-  const item = document.querySelector(`[data-key='${contact.id}']`);
-
-  if (contact.deleted) {
-    // remove the item from the DOM
-    item.remove();
-    return;
-  }
-
-  // creating new element article
-  const node = document.createElement("article");
-  node.setAttribute("class", "person"); // setting attribute class:"person"
-  node.setAttribute("data-key", contact.id);
-  // adding a image name and dob in article element
-  // we can access the contactObject items with contactObject.objectitem because we rendered a contactObject in renderContact function as a parameter
-  node.innerHTML = `
-<img src="${contact.imageurl}">
-<div class="contactdetail">
-<h1><i class="fas fa-user-circle contactIcon"></i> ${contact.name}</h1>
-<p> <i class="fas fa-envelope contactIcon"></i> ${contact.email}</p>
-<p><i class="fas fa-phone-alt contactIcon"></i> ${contact.contactnumber}  </p>
-</div>
-    <button class="delete-contact js-delete-contact">
-        <svg fill="var(--svgcolor)" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
-        </svg>
-    </button>
-`;
-  // appending a node in list
-  list.append(node);
-}
-
-const list = document.querySelector(".Contact_list");
-list.addEventListener("click", (event) => {
-  if (event.target.classList.contains("js-delete-contact")) {
-    const itemKey = event.target.parentElement.dataset.key;
-    deleteContact(itemKey);
-  }
-});
-
-function deleteContact(key) {
-  // find the corresponding contactObject in the contacts array
-  const index = contacts.findIndex((item) => item.id === Number(key));
-  // Create a new object with properties of the current contactobject item
-  // and a `deleted` property which is set to true
-  const UpdatedContactObject = {
-    deleted: true,
-    ...contacts[index],
-  };
-  // remove the contactobject item from the array by filtering it out
-  contacts = contacts.filter((item) => item.id !== Number(key));
-  renderContact(UpdatedContactObject);
-}
-
-// function for adding todo
-function addContact(name, email, imageurl, contactnumber, id) {
-  const contactObject = {
-    name: document.getElementById("fullName").value,
-    email: document.getElementById("myEmail").value,
-    imageurl: document.getElementById("imgurl").value,
-    contactnumber: document.getElementById("myTel").value,
-    id: Date.now(),
-  };
-
-  // push a contactObject in todoItems array for store a data as a array in localstorage
-  contacts.push(contactObject);
-  /* console.log(todoItems); */
-  // rendering contactObject in renderContact function as a prameter
-  renderContact(contactObject);
-}
-
-// add a event listner submit to the form
-const form = document.querySelector(".js-form");
-form.addEventListener("submit", (event) => {
-  event.preventDefault();
-  // when the form is submitted addTodo function is called
-  addContact();
-  form.reset();
-});
-
-// adding a add event listner when content is loaded and showing stored data array on the screen
+// Load stored contacts
 document.addEventListener("DOMContentLoaded", () => {
-  const ref = localStorage.getItem("contacts");
-  if (ref) {
-    contacts = JSON.parse(ref);
-    contacts.forEach((t) => {
-      renderContact(t);
-    });
-  }
+    const stored = localStorage.getItem("contacts");
+    if (stored) contacts = JSON.parse(stored);
+    renderContacts();
 });
 
+// Render contacts
+function renderContacts() {
+    const list = document.getElementById("people");
+    list.innerHTML = "";
 
+    let sortedContacts = [...contacts];
+    const sortVal = document.getElementById("sortContacts").value;
+    if(sortVal === "nameAsc") sortedContacts.sort((a,b)=>a.name.localeCompare(b.name));
+    if(sortVal === "nameDesc") sortedContacts.sort((a,b)=>b.name.localeCompare(a.name));
+    if(sortVal === "emailAsc") sortedContacts.sort((a,b)=>a.email.localeCompare(b.email));
+    if(sortVal === "emailDesc") sortedContacts.sort((a,b)=>b.email.localeCompare(a.email));
+
+    sortedContacts.forEach(contact => {
+        const node = document.createElement("div");
+        node.className = "person";
+        node.dataset.id = contact.id;
+        node.innerHTML = `
+            <img src="${contact.imageurl || 'https://via.placeholder.com/60'}">
+            <div class="contactdetail">
+                <h4>${contact.name} <i class="fas fa-star fav-contact" style="color:${contact.favorite? 'gold':'#ccc'}"></i></h4>
+                <p>${contact.email}</p>
+                <p>${contact.contactnumber}</p>
+            </div>
+            <button class="edit-contact"><i class="fas fa-edit"></i></button>
+            <button class="delete-contact">&times;</button>
+        `;
+        list.appendChild(node);
+    });
+    localStorage.setItem("contacts", JSON.stringify(contacts));
+}
+
+// Form submit (add or edit)
+document.querySelector(".js-form").addEventListener("submit", e=>{
+    e.preventDefault();
+    const name = document.getElementById("fullName").value;
+    const email = document.getElementById("myEmail").value;
+    const phone = document.getElementById("myTel").value;
+    const image = document.getElementById("imgurl").value;
+
+    if(editingId){
+        contacts = contacts.map(c=>{
+            if(c.id===editingId){
+                return {...c, name, email, contactnumber:phone, imageurl:image};
+            }
+            return c;
+        });
+        editingId = null;
+        document.getElementById("submitBtn").textContent="Add Contact";
+        document.getElementById("cancelEdit").style.display="none";
+        document.getElementById("formTitle").textContent="Add New Contact";
+    }else{
+        contacts.push({id:Date.now(), name, email, contactnumber:phone, imageurl:image, favorite:false});
+    }
+    renderContacts();
+    e.target.reset();
+});
+
+// Cancel edit
+document.getElementById("cancelEdit").addEventListener("click", ()=>{
+    editingId=null;
+    document.getElementById("submitBtn").textContent="Add Contact";
+    document.getElementById("cancelEdit").style.display="none";
+    document.getElementById("formTitle").textContent="Add New Contact";
+    document.querySelector(".js-form").reset();
+});
+
+// Delete or Edit or Favorite
+document.getElementById("people").addEventListener("click", e=>{
+    const id = Number(e.target.closest(".person").dataset.id);
+    if(e.target.closest(".delete-contact")){
+        contacts = contacts.filter(c=>c.id!==id);
+    }
+    if(e.target.closest(".edit-contact")){
+        const contact = contacts.find(c=>c.id===id);
+        document.getElementById("fullName").value=contact.name;
+        document.getElementById("myEmail").value=contact.email;
+        document.getElementById("myTel").value=contact.contactnumber;
+        document.getElementById("imgurl").value=contact.imageurl;
+        editingId=id;
+        document.getElementById("submitBtn").textContent="Update Contact";
+        document.getElementById("cancelEdit").style.display="block";
+        document.getElementById("formTitle").textContent="Edit Contact";
+    }
+    if(e.target.closest(".fav-contact")){
+        contacts = contacts.map(c=>{
+            if(c.id===id) c.favorite=!c.favorite;
+            return c;
+        });
+    }
+    renderContacts();
+});
+
+// Search
+document.getElementById("search").addEventListener("input", function(){
+    const query = this.value.toLowerCase();
+    document.querySelectorAll(".person").forEach(c=>{
+        const name = c.querySelector("h4").textContent.toLowerCase();
+        const email = c.querySelector("p").textContent.toLowerCase();
+        c.style.display=(name.includes(query)||email.includes(query))?"flex":"none";
+    });
+});
+
+// Sort
+document.getElementById("sortContacts").addEventListener("change", renderContacts);
+
+// Dark/Light theme
+const toggleSwitch=document.querySelector('.theme-switch input[type="checkbox"]');
+const currentTheme = localStorage.getItem("theme");
+if(currentTheme) document.documentElement.setAttribute("data-theme",currentTheme);
+if(currentTheme==="dark") toggleSwitch.checked=true;
+toggleSwitch.addEventListener("change", e=>{
+    if(e.target.checked){
+        document.documentElement.setAttribute("data-theme","dark");
+        localStorage.setItem("theme","dark");
+    }else{
+        document.documentElement.setAttribute("data-theme","light");
+        localStorage.setItem("theme","light");
+    }
+});
