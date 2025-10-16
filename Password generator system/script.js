@@ -1,28 +1,17 @@
-// Functions for generating random number lowercase uppercase letters , symbols
-
-/* Math.random method genrate a random floating-point numbers
-Math.floor() function returns the largest integer less than or equal to a given number.
-For generating a random uppercase lowercase text random numbers symbols we use Charcode 
-http://stevehardie.com/2009/09/character-code-list-char-code/ */
-
 function getRandomLower() {
   return String.fromCharCode(Math.floor(Math.random() * 26) + 97);
 }
-
 function getRandomUpper() {
   return String.fromCharCode(Math.floor(Math.random() * 26) + 65);
 }
-
 function getRandomNumber() {
-  return +String.fromCharCode(Math.floor(Math.random() * 10) + 48);
+  return String.fromCharCode(Math.floor(Math.random() * 10) + 48);
 }
-
 function getRandomSymbol() {
-  const symbols = "!@#$%^&*(){}[]=<>/,.";
+  const symbols = "!@#$%^&*(){}[]=<>/,.~?";
   return symbols[Math.floor(Math.random() * symbols.length)];
 }
 
-// adding a all functions into a object called randomFunc
 const randomFunc = {
   lower: getRandomLower,
   upper: getRandomUpper,
@@ -30,58 +19,135 @@ const randomFunc = {
   symbol: getRandomSymbol,
 };
 
-// adding a click event listner to generate button
-const generate = document.getElementById("generateBtn");
-generate.addEventListener("click", () => {
-  const length = document.getElementById("Passwordlength").value;
-  const hasUpper = document.getElementById("uppercase").checked;
-  const hasLower = document.getElementById("lowercase").checked;
-  const hasNumber = document.getElementById("numbers").checked;
-  const hasSymbol = document.getElementById("symbols").checked;
-  const result = document.getElementById("PasswordResult");
-  result.innerText = generatePassword(
+const resultEl = document.getElementById("PasswordResult");
+const lengthEl = document.getElementById("Passwordlength");
+const uppercaseEl = document.getElementById("uppercase");
+const lowercaseEl = document.getElementById("lowercase");
+const numberEl = document.getElementById("numbers");
+const symbolEl = document.getElementById("symbols");
+const noSimilarEl = document.getElementById("noSimilar");
+const generateEl = document.getElementById("generateBtn");
+const clipboardEl = document.getElementById("clipboardBtn");
+const autoRegenEl = document.getElementById("autoRegen");
+const strengthMeter = document.getElementById("strengthMeter").querySelector("span");
+const strengthText = document.getElementById("strengthText");
+const historyList = document.getElementById("historyList");
+const clearHistoryBtn = document.getElementById("clearHistoryBtn");
+
+function generatePassword(lower, upper, number, symbol, length, avoidSimilar) {
+  let generatedPassword = "";
+  const typesArr = [{ lower }, { upper }, { number }, { symbol }].filter(
+    item => Object.values(item)[0]
+  );
+
+  if (typesArr.length === 0) return "";
+
+  while (generatedPassword.length < length) {
+    typesArr.forEach(type => {
+      const funcName = Object.keys(type)[0];
+      let char = randomFunc[funcName]();
+      if (avoidSimilar && /[O0l1]/.test(char)) return;
+      generatedPassword += char;
+    });
+  }
+
+  return generatedPassword.slice(0, length);
+}
+
+function updateStrength(password) {
+  let strength = 0;
+  if (password.length > 8) strength++;
+  if (/[A-Z]/.test(password)) strength++;
+  if (/[a-z]/.test(password)) strength++;
+  if (/[0-9]/.test(password)) strength++;
+  if (/[^A-Za-z0-9]/.test(password)) strength++;
+
+  const width = (strength / 5) * 100;
+  strengthMeter.style.width = `${width}%`;
+
+  const colors = ["red", "orange", "#fbc531", "#44bd32", "#009432"];
+  strengthMeter.style.background = colors[strength - 1] || "red";
+  strengthText.innerText =
+    ["Weak", "Fair", "Good", "Strong", "Very Strong"][strength - 1] || "Weak";
+}
+
+function showToast() {
+  const toast = document.getElementById("toast");
+  toast.classList.add("show");
+  setTimeout(() => toast.classList.remove("show"), 1500);
+}
+
+// Copy to clipboard
+clipboardEl.addEventListener("click", () => {
+  navigator.clipboard.writeText(resultEl.value);
+  showToast();
+});
+
+// Generate password
+generateEl.addEventListener("click", () => {
+  const length = +lengthEl.value;
+  const hasLower = lowercaseEl.checked;
+  const hasUpper = uppercaseEl.checked;
+  const hasNumber = numberEl.checked;
+  const hasSymbol = symbolEl.checked;
+  const avoidSimilar = noSimilarEl.checked;
+
+  const password = generatePassword(
     hasLower,
     hasUpper,
     hasNumber,
     hasSymbol,
-    length
+    length,
+    avoidSimilar
   );
-  // console.log(hasLower, hasUpper, hasNumber, hasSymbol);
+
+  resultEl.value = password;
+  updateStrength(password);
+  saveHistory(password);
 });
 
-// function for generating random password
-function generatePassword(lower, upper, number, symbol, length) {
-    let generatedPassword = "";
-    const typesCount = lower + upper + number + symbol;
-    // filter out unchecked types
-    const typesArr = [{ lower }, { upper }, { number }, { symbol }].filter(
-      (item) => Object.values(item)[0]
-    );
-    // console.log(typesArr);
-  
-    // creating a loop for calling generator function for each type
-    for (let i = 0; i < length; i += typesCount) {
-      typesArr.forEach((type) => {
-        const funcName = Object.keys(type)[0];
-        generatedPassword += randomFunc[funcName]();
-      });
-    }
-  
-    // slicing password from 0 to length
-    const finalPassword = generatedPassword.slice(0, length);
-    return finalPassword;
+// Auto regenerate
+autoRegenEl.addEventListener("change", () => {
+  if (autoRegenEl.checked) {
+    autoGenerate();
+  } else {
+    clearInterval(autoGenerate.interval);
   }
-  
-  // copy to clipboard
-let button = document.getElementById("clipboardBtn");
-// add click event listner on button
-button.addEventListener("click", (e) => {
-  e.preventDefault();
-  // execute command for copy text by selecting textarea text with id
-  document.execCommand(
-    "copy",
-    false,
-    document.getElementById("PasswordResult").select()
-  );
 });
 
+function autoGenerate() {
+  autoGenerate.interval = setInterval(() => {
+    generateEl.click();
+  }, 2000);
+}
+
+function saveHistory(password) {
+  if (!password) return;
+  const li = document.createElement("li");
+  li.textContent = password;
+  historyList.prepend(li);
+  if (historyList.children.length > 5) historyList.removeChild(historyList.lastChild);
+}
+
+clearHistoryBtn.addEventListener("click", () => {
+  historyList.innerHTML = "";
+});
+
+// Dark mode toggle
+const toggleSwitch = document.querySelector('.theme-switch input[type="checkbox"]');
+const currentTheme = localStorage.getItem("theme");
+
+if (currentTheme) {
+  document.documentElement.setAttribute("data-theme", currentTheme);
+  if (currentTheme === "dark") toggleSwitch.checked = true;
+}
+
+toggleSwitch.addEventListener("change", (e) => {
+  if (e.target.checked) {
+    document.documentElement.setAttribute("data-theme", "dark");
+    localStorage.setItem("theme", "dark");
+  } else {
+    document.documentElement.setAttribute("data-theme", "light");
+    localStorage.setItem("theme", "light");
+  }
+});
